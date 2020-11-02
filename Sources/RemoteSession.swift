@@ -55,6 +55,7 @@ final public class SessionDelegate: NSObject, URLSessionDataDelegate, URLSession
     
     weak var fileProvider: (FileProviderBasicRemote & FileProviderOperations)?
     var credential: URLCredential?
+    var rootCertificate: SecCertificate?
     
     public init(fileProvider: FileProviderBasicRemote & FileProviderOperations) {
         self.fileProvider = fileProvider
@@ -226,7 +227,60 @@ final public class SessionDelegate: NSObject, URLSessionDataDelegate, URLSession
         authenticate(didReceive: challenge, completionHandler: completionHandler)
     }
     
+    private func isValidAgainstRootCertificate(didReceive challenge: URLAuthenticationChallenge) -> Bool {
+        guard let rootCertificate = rootCertificate else {
+            // If there's no root certificate given, there's nothing to do
+            return true
+        }
+        
+        guard let trust = challenge.protectionSpace.serverTrust else {
+            return true
+        }
+        
+        let err = SecTrustSetAnchorCertificates(trust, [rootCertificate] as CFArray)
+        if err != errSecSuccess {
+            //print("failed to set trust anchor certs")
+        }
+        
+        let err2 = SecTrustSetAnchorCertificatesOnly(trust, false)
+        if err2 != errSecSuccess {
+            //print("failed to disable 'anchor certs only'")
+        }
+        
+        let isTrusted: Bool
+        if #available(iOSApplicationExtension 12.0, *) {
+            var error: CFError?
+            isTrusted = SecTrustEvaluateWithError(trust, &error)
+//            if let error = error {
+//                print("Eval failed with error: \(error.localizedDescription)")
+//                print("Full error: \(error)")
+//            }
+        } else {
+            var trustResult: SecTrustResultType = .invalid
+            SecTrustEvaluate(trust, &trustResult)
+//            let val = trustResult.rawValue
+//            if val == 0 { print("trust result: invalid") }
+//            if val == 1 { print("trust result: proceed") }
+//            if val == 2 { print("trust result: -----") }
+//            if val == 3 { print("trust result: deny") }
+//            if val == 4 { print("trust result: unspecified") }
+//            if val == 5 { print("trust result: recoverable trust failure") }
+//            if val == 6 { print("trust result: fatal trust failure") }
+//            if val == 7 { print("trust result: other") }
+//            
+//            print("trust result: \(trustResult.rawValue)")
+            isTrusted = [.proceed, .unspecified].contains(trustResult)
+        }
+        return isTrusted
+    }
+    
     private func authenticate(didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        
+        guard isValidAgainstRootCertificate(didReceive: challenge) else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
         switch (challenge.previousFailureCount, credential != nil) {
         case (0...1, true):
             completionHandler(.useCredential, credential)

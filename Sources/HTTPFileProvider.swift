@@ -30,6 +30,11 @@ open class HTTPFileProvider: NSObject, FileProviderBasicRemote, FileProviderOper
             sessionDelegate?.credential = self.credential
         }
     }
+    open var rootCertificate: SecCertificate? {
+        didSet {
+            sessionDelegate?.rootCertificate = self.rootCertificate
+        }
+    }
     open private(set) var cache: URLCache?
     public var useCache: Bool
     public var validatingCache: Bool
