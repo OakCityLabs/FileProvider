@@ -248,7 +248,7 @@ final public class SessionDelegate: NSObject, URLSessionDataDelegate, URLSession
         }
         
         let isTrusted: Bool
-        if #available(iOSApplicationExtension 12.0, *) {
+        if #available(iOS 12.0, *) {
             var error: CFError?
             isTrusted = SecTrustEvaluateWithError(trust, &error)
 //            if let error = error {
